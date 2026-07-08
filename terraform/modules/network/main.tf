@@ -87,7 +87,7 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # ── Ingress: Custom (port 9000) ──────────────────────────
+  # ── Ingress: Custom (port 9000 for Portainer) ───────────
   ingress_security_rules {
     protocol = "6" # TCP
     source   = "0.0.0.0/0"
@@ -95,6 +95,17 @@ resource "oci_core_security_list" "public" {
     tcp_options {
       max = 9000
       min = 9000
+    }
+  }
+
+  # ── Ingress: Custom (port 3000 for Grafana) ─────────────
+  ingress_security_rules {
+    protocol = "6" # TCP
+    source   = "0.0.0.0/0"
+    
+    tcp_options {
+      max = 3000
+      min = 3000
     }
   }
 
