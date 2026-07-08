@@ -328,11 +328,46 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
+    env_file:
+      - .env.prod
     volumes:
       - /opt/tirixai/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - /opt/tirixai/alertmanager:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env'
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ── Tempo (Distributed Tracing) ───────────────────────
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - /opt/tirixai/monitoring/tempo/tempo.yml:/etc/tempo.yaml:ro
+      - /opt/tirixai/tempo:/tmp/tempo
+    ports:
+      - "3200:3200"   # tempo
+      - "4317:4317"  # otlp grpc
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ── OpenTelemetry Collector ───────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector:0.99.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - /opt/tirixai/monitoring/otel/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    ports:
+      - "4318:4318" # OTLP http receiver
+    depends_on:
+      - tempo
     deploy:
       resources:
         limits:

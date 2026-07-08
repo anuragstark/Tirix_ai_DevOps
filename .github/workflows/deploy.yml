@@ -94,6 +94,16 @@ jobs:
             echo "==> Authenticating to GHCR..."
             sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GH_PAT_TOKEN }}
 
+            echo "==> Injecting Alertmanager Secrets..."
+            # Remove old keys if they exist
+            sudo sed -i '/^RESEND_API_KEY=/d' /opt/tirixai/.env.prod || true
+            sudo sed -i '/^ALERT_EMAIL_FROM=/d' /opt/tirixai/.env.prod || true
+            sudo sed -i '/^ALERT_EMAIL_TO=/d' /opt/tirixai/.env.prod || true
+            # Append new keys from GitHub Secrets
+            echo "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" | sudo tee -a /opt/tirixai/.env.prod > /dev/null
+            echo "ALERT_EMAIL_FROM=${{ secrets.ALERT_EMAIL_FROM }}" | sudo tee -a /opt/tirixai/.env.prod > /dev/null
+            echo "ALERT_EMAIL_TO=${{ secrets.ALERT_EMAIL_TO }}" | sudo tee -a /opt/tirixai/.env.prod > /dev/null
+
             echo "==> Deploying..."
             cd /opt/tirixai
             sudo bash /opt/tirixai/scripts/deploy.sh
