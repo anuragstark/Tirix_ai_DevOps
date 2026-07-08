@@ -1,6 +1,4 @@
-# Tirix AI — Production Docker Compose
-# OCI ARM Ampere Deployment
-
+# Tirix AI — App Node Docker Compose
 services:
   # ── Nginx (Reverse Proxy & SSL) ─────────────────────────
   nginx:
@@ -25,7 +23,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env.prod
-    # Internal only, proxy handles external
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000" ]
       interval: 30s
@@ -82,7 +79,7 @@ services:
         limits:
           memory: 512M
 
-  # ── PostgreSQL (Unified for Platform + MLflow + Gateway) 
+  # ── PostgreSQL ────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -101,7 +98,7 @@ services:
         limits:
           memory: 1.5G
 
-  # ── Redis (Cache & Celery Broker) ─────────────────────
+  # ── Redis ─────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -129,7 +126,7 @@ services:
         limits:
           memory: 1.5G
 
-  # ── Ollama (Local Embeddings) ─────────────────────────
+  # ── Ollama ────────────────────────────────────────────
   ollama:
     image: ollama/ollama:0.5.7
     restart: unless-stopped
@@ -140,7 +137,7 @@ services:
         limits:
           memory: 2G
 
-  # ── Celery Worker: General ────────────────────────────
+  # ── Celery Workers ────────────────────────────────────
   celery-worker-general:
     image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -159,7 +156,6 @@ services:
         limits:
           memory: 512M
 
-  # ── Celery Worker: OCR ────────────────────────────────
   celery-worker-ocr:
     image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -176,7 +172,6 @@ services:
         limits:
           memory: 1G
 
-  # ── Celery Worker: Embedding ──────────────────────────
   celery-worker-embedding:
     image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -193,7 +188,6 @@ services:
         limits:
           memory: 1G
 
-  # ── Celery Beat (Scheduler) ───────────────────────────
   celery-beat:
     image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -204,7 +198,6 @@ services:
       redis:
         condition: service_healthy
 
-  # ── MLflow ────────────────────────────────────────────
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.16.0
     restart: unless-stopped
@@ -222,47 +215,12 @@ services:
         limits:
           memory: 512M
 
-  # ── Prometheus ────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    restart: unless-stopped
-    volumes:
-      - /opt/tirixai/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - /opt/tirixai/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - /opt/tirixai/prometheus:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-lifecycle'
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  # ── Grafana ───────────────────────────────────────────
-  grafana:
-    image: grafana/grafana:10.4.0
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env.prod
-    volumes:
-      - /opt/tirixai/grafana:/var/lib/grafana
-      - /opt/tirixai/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - /opt/tirixai/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      prometheus:
-        condition: service_started
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  # ── Node Exporter (Host Metrics) ──────────────────────
+  # ── Local Node Exporters ──────────────────────────────
   node-exporter:
     image: prom/node-exporter:v1.7.0
     restart: unless-stopped
+    ports:
+      - "9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -272,16 +230,13 @@ services:
       - '--path.rootfs=/rootfs'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    deploy:
-      resources:
-        limits:
-          memory: 128M
 
-  # ── cAdvisor (Container Metrics) ──────────────────────
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     restart: unless-stopped
     privileged: true
+    ports:
+      - "8080:8080"
     devices:
       - /dev/kmsg:/dev/kmsg
     volumes:
@@ -290,25 +245,7 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-    deploy:
-      resources:
-        limits:
-          memory: 256M
 
-  # ── Loki (Logs) ───────────────────────────────────────
-  loki:
-    image: grafana/loki:2.9.4
-    restart: unless-stopped
-    volumes:
-      - /opt/tirixai/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
-      - /opt/tirixai/loki:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-
-  # ── Promtail (Log Shipper) ────────────────────────────
   promtail:
     image: grafana/promtail:2.9.4
     restart: unless-stopped
@@ -317,63 +254,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /opt/tirixai/monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
-    depends_on:
-      - loki
-    deploy:
-      resources:
-        limits:
-          memory: 128M
 
-  # ── Alertmanager ──────────────────────────────────────
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    restart: unless-stopped
-    env_file:
-      - .env.prod
-    volumes:
-      - /opt/tirixai/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - /opt/tirixai/alertmanager:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--config.expand-env'
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
-  # ── Tempo (Distributed Tracing) ───────────────────────
-  tempo:
-    image: grafana/tempo:latest
-    restart: unless-stopped
-    command: [ "-config.file=/etc/tempo.yaml" ]
-    volumes:
-      - /opt/tirixai/monitoring/tempo/tempo.yml:/etc/tempo.yaml:ro
-      - /opt/tirixai/tempo:/tmp/tempo
-    ports:
-      - "3200:3200"   # tempo
-      - "4317:4317"  # otlp grpc
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  # ── OpenTelemetry Collector ───────────────────────────
-  otel-collector:
-    image: otel/opentelemetry-collector:0.99.0
-    restart: unless-stopped
-    command: ["--config=/etc/otel-collector-config.yml"]
-    volumes:
-      - /opt/tirixai/monitoring/otel/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
-    ports:
-      - "4318:4318" # OTLP http receiver
-    depends_on:
-      - tempo
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
-  # ── Portainer (Visual Management & Instant Rollbacks) ─
   portainer:
     image: portainer/portainer-ce:latest
     restart: unless-stopped
@@ -382,12 +263,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/tirixai/portainer:/data
-    deploy:
-      resources:
-        limits:
-          memory: 256M
 
-  # ── Autoheal (Automatic Self-Healing) ─────────────────
   autoheal:
     image: willfarrell/autoheal:latest
     restart: unless-stopped
@@ -395,7 +271,3 @@ services:
       - AUTOHEAL_CONTAINER_LABEL=all
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    deploy:
-      resources:
-        limits:
-          memory: 64M

@@ -131,6 +131,13 @@ resource "oci_core_security_list" "public" {
     }
   }
 
+  # ── Ingress: Internal Subnet Communication (All TCP/UDP) ─
+  ingress_security_rules {
+    protocol    = "all"
+    source      = var.subnet_cidr
+    description = "Allow all internal communication within the subnet"
+  }
+
   freeform_tags = var.tags
 }
 

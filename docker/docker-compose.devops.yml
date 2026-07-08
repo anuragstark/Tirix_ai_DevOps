@@ -1,0 +1,75 @@
+# Tirix AI — DevOps Node Docker Compose
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - /opt/tirixai/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/tirixai/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - /opt/tirixai/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.prod
+    volumes:
+      - /opt/tirixai/grafana:/var/lib/grafana
+      - /opt/tirixai/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /opt/tirixai/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  loki:
+    image: grafana/loki:2.9.4
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - /opt/tirixai/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - /opt/tirixai/loki:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - "9093:9093"
+    volumes:
+      - /opt/tirixai/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - /opt/tirixai/alertmanager:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env'
+
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - /opt/tirixai/monitoring/tempo/tempo.yml:/etc/tempo.yaml:ro
+      - /opt/tirixai/tempo:/tmp/tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.99.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - /opt/tirixai/monitoring/otel/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    ports:
+      - "4318:4318"
+    depends_on:
+      - tempo

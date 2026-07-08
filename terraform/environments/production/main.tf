@@ -71,3 +71,18 @@ module "storage" {
   volume_size_gb      = 100
   tags                = var.tags
 }
+
+module "devops_vm" {
+  source              = "../../modules/compute"
+  compartment_id      = var.compartment_id
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  subnet_id           = module.network.subnet_id
+  project_name        = "${var.project_name}-devops"
+  vm_shape            = "VM.Standard.A1.Flex"
+  vm_ocpus            = 1
+  vm_memory_gb        = 1
+  boot_volume_size_gb = 50
+  ssh_public_key      = var.ssh_public_key
+  deploy_user         = "deploy"
+  tags                = var.tags
+}

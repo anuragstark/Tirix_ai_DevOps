@@ -81,9 +81,9 @@ jobs:
             echo "IMAGE_TAG=${{ github.event.inputs.git_sha }}" | sudo tee -a .env.prod > /dev/null
 
             echo "==> Pulling target images..."
-            sudo docker compose -f docker-compose.prod.yml pull
+            sudo docker compose -f docker-compose.app.yml pull
 
             echo "==> Instantly rolling back containers..."
-            sudo docker compose -f docker-compose.prod.yml up -d
+            sudo docker compose -f docker-compose.app.yml up -d
 
             echo "✅ Rollback to ${{ github.event.inputs.git_sha }} complete!"
