@@ -1,8 +1,8 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────────────────
+
 # Deploy Script
 # Pulls latest images and restarts containers gracefully
-# ─────────────────────────────────────────────────────────────
+
 
 set -e
 cd /opt/tirixai

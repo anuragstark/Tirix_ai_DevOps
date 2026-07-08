@@ -1,6 +1,6 @@
-# ─────────────────────────────────────────────────────────────
+
 # Root Module — Outputs
-# ─────────────────────────────────────────────────────────────
+
 
 output "public_ip" {
   description = "Public IP of the application server"

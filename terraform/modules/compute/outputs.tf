@@ -1,6 +1,6 @@
-# ─────────────────────────────────────────────────────────────
+
 # Compute Module — Outputs
-# ─────────────────────────────────────────────────────────────
+
 
 output "instance_id" {
   description = "OCID of the compute instance"

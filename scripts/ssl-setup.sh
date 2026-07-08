@@ -1,8 +1,8 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────────────────
+
 # SSL Setup Script
 # Generates Let's Encrypt certificates using Certbot webroot
-# ─────────────────────────────────────────────────────────────
+
 
 DOMAIN="tirixai.com"
 EMAIL="admin@tirixai.com"

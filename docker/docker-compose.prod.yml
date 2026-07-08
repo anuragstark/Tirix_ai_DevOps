@@ -1,7 +1,5 @@
-# ============================================
 # Tirix AI — Production Docker Compose
 # OCI ARM Ampere Deployment
-# ============================================
 
 services:
   # ── Nginx (Reverse Proxy & SSL) ─────────────────────────
@@ -29,7 +27,7 @@ services:
       - .env.prod
     # Internal only, proxy handles external
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:3000" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -54,7 +52,7 @@ services:
       qdrant:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -75,7 +73,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys,urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      test: [ "CMD", "python", "-c", "import sys,urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -94,7 +92,7 @@ services:
       - /opt/tirixai/postgres:/var/lib/postgresql/data
       - /opt/tirixai/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U platform -d platform"]
+      test: [ "CMD-SHELL", "pg_isready -U platform -d platform" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -107,11 +105,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
       - /opt/tirixai/redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5

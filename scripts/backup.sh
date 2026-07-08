@@ -1,9 +1,9 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────────────────
+
 # Backup Script
 # Dumps PostgreSQL and syncs to AWS S3
 # Run via Cron (e.g. 0 3 * * * /opt/tirixai/backup.sh)
-# ─────────────────────────────────────────────────────────────
+
 
 set -e
 

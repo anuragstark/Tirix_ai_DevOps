@@ -1,8 +1,8 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────────────────
+
 # Provisioning Script
 # Run this once on the Oracle VM after SSHing in.
-# ─────────────────────────────────────────────────────────────
+
 
 set -e
 

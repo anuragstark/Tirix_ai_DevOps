@@ -1,8 +1,8 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────────────────
+
 # OCI Cloud-Init Script
 # Automatically configures the fresh Oracle Linux 9 ARM instance
-# ─────────────────────────────────────────────────────────────
+
 
 set -e
 exec > >(tee -a /var/log/cloud-init-output.log | logger -t user-data -s 2>/dev/console) 2>&1

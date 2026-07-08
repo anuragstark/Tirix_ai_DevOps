@@ -1,7 +1,7 @@
-# ─────────────────────────────────────────────────────────────
+
 # Tirix AI — OCI Storage Module
 # Persistent block volume for Databases, Qdrant, and uploads
-# ─────────────────────────────────────────────────────────────
+
 
 # ── Block Volume ────────────────────────────────────────────
 resource "oci_core_volume" "data" {

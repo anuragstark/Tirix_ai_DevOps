@@ -1,7 +1,7 @@
-# ─────────────────────────────────────────────────────────────
+
 # Tirix AI — OCI Network Module
 # Creates VCN, Subnet, Internet Gateway, Route Table, Security List
-# ─────────────────────────────────────────────────────────────
+
 
 # ── VCN ─────────────────────────────────────────────────────
 resource "oci_core_vcn" "main" {

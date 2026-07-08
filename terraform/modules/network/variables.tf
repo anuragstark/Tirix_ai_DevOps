@@ -1,6 +1,6 @@
-# ─────────────────────────────────────────────────────────────
+
 # Network Module — Variables
-# ─────────────────────────────────────────────────────────────
+
 
 variable "compartment_id" {
   description = "OCI Compartment OCID"

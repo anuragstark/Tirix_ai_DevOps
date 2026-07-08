@@ -1,6 +1,6 @@
-# ─────────────────────────────────────────────────────────────
+
 # Storage Module — Outputs
-# ─────────────────────────────────────────────────────────────
+
 
 output "volume_id" {
   description = "OCID of the block volume"

@@ -1,7 +1,7 @@
-# ─────────────────────────────────────────────────────────────
+
 # Tirix AI — OCI Compute Module
 # ARM Ampere A1.Flex instance with cloud-init provisioning
-# ─────────────────────────────────────────────────────────────
+
 
 # ── Fetch latest Oracle Linux 9 ARM image ───────────────────
 data "oci_core_images" "oracle_linux" {
