@@ -3,9 +3,9 @@
 > [!WARNING]
 > **This project is currently under active development.** Things might break, and configurations are subject to change.
 
-**Tirix AI** is an intelligent, AI-powered web application designed to provide automated processing and insights. 
+**Tirix AI** is an enterprise-grade Self-Healing AI Platform featuring multi-cloud LLM routing, RAG-powered document Q&A, and automated drift detection. 
 
-This repository contains all infrastructure as code, deployment scripts, and CI/CD pipelines to run Tirix AI on Oracle Cloud Infrastructure (OCI) Always Free tier.
+This repository contains all infrastructure as code, deployment scripts, and CI/CD pipelines to run Tirix AI on Oracle Cloud Infrastructure (OCI) 
 
 ## Architecture
 
