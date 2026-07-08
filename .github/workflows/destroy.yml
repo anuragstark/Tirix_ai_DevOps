@@ -1,4 +1,4 @@
-name: Infrastructure Destroy (DANGER)
+name: Infrastructure Destroy (No Babe)
 
 on:
   workflow_dispatch:
