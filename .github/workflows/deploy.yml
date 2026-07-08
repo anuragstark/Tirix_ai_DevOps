@@ -1,0 +1,99 @@
+name: Infra Provision & App Deploy
+
+on:
+  repository_dispatch:
+    types: [deploy_app]
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  terraform:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials for S3 State
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Create OCI API Key File
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        working-directory: ./terraform/environments/production
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./terraform/environments/production
+        env:
+          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.OCI_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          TF_VAR_private_key_path: "/home/runner/.oci/oci_api_key.pem"
+          TF_VAR_region: ${{ secrets.OCI_REGION }}
+          TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          TF_VAR_ssh_public_key: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+        run: terraform apply -auto-approve
+
+      - name: Get Public IP
+        id: tf_outputs
+        working-directory: ./terraform/environments/production
+        run: |
+          PUBLIC_IP=$(terraform output -raw public_ip)
+          echo "public_ip=${PUBLIC_IP}" >> $GITHUB_OUTPUT
+          
+          # Write summary
+          echo "### 🚀 Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "Your VM Public IP is: **${PUBLIC_IP}**" >> $GITHUB_STEP_SUMMARY
+    outputs:
+      public_ip: ${{ steps.tf_outputs.outputs.public_ip }}
+
+  deploy_app:
+    name: Provision & Deploy App
+    needs: terraform
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Wait for VM SSH to be ready (if just created)
+        run: sleep 45
+
+      - name: SSH into VM and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ needs.terraform.outputs.public_ip }}
+          username: opc
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          script: |
+            echo "==> Pulling latest DevOps repo..."
+            if [ ! -d "/home/deploy/Tirix_ai_DevOps" ]; then
+              sudo mkdir -p /home/deploy
+              sudo git clone https://github.com/${{ github.repository }}.git /home/deploy/Tirix_ai_DevOps
+            else
+              cd /home/deploy/Tirix_ai_DevOps && sudo git pull
+            fi
+
+            echo "==> Running Provisioning (safe to run multiple times)..."
+            sudo bash /home/deploy/Tirix_ai_DevOps/scripts/provision.sh
+
+            echo "==> Authenticating to GHCR..."
+            sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GH_PAT_TOKEN }}
+
+            echo "==> Deploying..."
+            cd /opt/tirixai
+            sudo bash /opt/tirixai/scripts/deploy.sh

@@ -1,0 +1,339 @@
+# ============================================
+# Tirix AI — Production Docker Compose
+# OCI ARM Ampere Deployment
+# ============================================
+
+services:
+  # ── Nginx (Reverse Proxy & SSL) ─────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/tirixai/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /opt/tirixai/nginx/conf.d:/etc/nginx/conf.d:ro
+      - /opt/tirixai/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # ── Frontend (React) ──────────────────────────────────
+  frontend:
+    image: ghcr.io/yourusername/ai-platform-frontend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    # Internal only, proxy handles external
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Backend (FastAPI) ─────────────────────────────────
+  backend:
+    image: ghcr.io/yourusername/ai-platform-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - /opt/tirixai/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ── LiteLLM Gateway ───────────────────────────────────
+  gateway:
+    image: ghcr.io/yourusername/llm-inference-gateway:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys,urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── PostgreSQL (Unified for Platform + MLflow + Gateway) 
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - /opt/tirixai/postgres:/var/lib/postgresql/data
+      - /opt/tirixai/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+
+  # ── Redis (Cache & Celery Broker) ─────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - /opt/tirixai/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Qdrant (Vector Database) ─────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    volumes:
+      - /opt/tirixai/qdrant:/qdrant/storage
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+
+  # ── Ollama (Local Embeddings) ─────────────────────────
+  ollama:
+    image: ollama/ollama:0.5.7
+    restart: unless-stopped
+    volumes:
+      - /opt/tirixai/ollama:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ── Celery Worker: General ────────────────────────────
+  celery-worker-general:
+    image: ghcr.io/yourusername/ai-platform-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    command: celery -A celery_app worker -Q general --concurrency=2 --loglevel=info
+    volumes:
+      - /opt/tirixai/uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Celery Worker: OCR ────────────────────────────────
+  celery-worker-ocr:
+    image: ghcr.io/yourusername/ai-platform-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    command: celery -A celery_app worker -Q ocr --concurrency=1 --loglevel=info
+    volumes:
+      - /opt/tirixai/uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ── Celery Worker: Embedding ──────────────────────────
+  celery-worker-embedding:
+    image: ghcr.io/yourusername/ai-platform-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    command: celery -A celery_app worker -Q embedding --concurrency=2 --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ── Celery Beat (Scheduler) ───────────────────────────
+  celery-beat:
+    image: ghcr.io/yourusername/ai-platform-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    command: celery -A celery_app beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── MLflow ────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.0
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - /opt/tirixai/mlflow:/mlflow/artifacts
+    command: >
+      sh -c "pip install psycopg2-binary && mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri postgresql://platform:platform@postgres:5432/mlflow --default-artifact-root /mlflow/artifacts"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Prometheus ────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: unless-stopped
+    volumes:
+      - /opt/tirixai/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/tirixai/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - /opt/tirixai/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Grafana ───────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - /opt/tirixai/grafana:/var/lib/grafana
+      - /opt/tirixai/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /opt/tirixai/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Node Exporter (Host Metrics) ──────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ── cAdvisor (Container Metrics) ──────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ── Loki (Logs) ───────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.4
+    restart: unless-stopped
+    volumes:
+      - /opt/tirixai/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - /opt/tirixai/loki:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Promtail (Log Shipper) ────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.4
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /opt/tirixai/monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ── Alertmanager ──────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - /opt/tirixai/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - /opt/tirixai/alertmanager:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    deploy:
+      resources:
+        limits:
+          memory: 128M
