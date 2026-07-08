@@ -21,7 +21,7 @@ services:
 
   # ── Frontend (React) ──────────────────────────────────
   frontend:
-    image: ghcr.io/yourusername/ai-platform-frontend:latest
+    image: ghcr.io/yourusername/ai-platform-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -38,7 +38,7 @@ services:
 
   # ── Backend (FastAPI) ─────────────────────────────────
   backend:
-    image: ghcr.io/yourusername/ai-platform-backend:latest
+    image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -63,7 +63,7 @@ services:
 
   # ── LiteLLM Gateway ───────────────────────────────────
   gateway:
-    image: ghcr.io/yourusername/llm-inference-gateway:latest
+    image: ghcr.io/yourusername/llm-inference-gateway:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -142,7 +142,7 @@ services:
 
   # ── Celery Worker: General ────────────────────────────
   celery-worker-general:
-    image: ghcr.io/yourusername/ai-platform-backend:latest
+    image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -161,7 +161,7 @@ services:
 
   # ── Celery Worker: OCR ────────────────────────────────
   celery-worker-ocr:
-    image: ghcr.io/yourusername/ai-platform-backend:latest
+    image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -178,7 +178,7 @@ services:
 
   # ── Celery Worker: Embedding ──────────────────────────
   celery-worker-embedding:
-    image: ghcr.io/yourusername/ai-platform-backend:latest
+    image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod
@@ -195,7 +195,7 @@ services:
 
   # ── Celery Beat (Scheduler) ───────────────────────────
   celery-beat:
-    image: ghcr.io/yourusername/ai-platform-backend:latest
+    image: ghcr.io/yourusername/ai-platform-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file:
       - .env.prod

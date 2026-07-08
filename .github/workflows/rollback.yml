@@ -1,0 +1,89 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: 'The Git SHA (e.g., a1b2c3d) of the private repo image you want to roll back to'
+        required: true
+        default: ''
+
+jobs:
+  rollback:
+    name: Instant Rollback
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify Input
+        run: |
+          if [ -z "${{ github.event.inputs.git_sha }}" ]; then
+            echo "You must provide a Git SHA."
+            exit 1
+          fi
+          echo "Rolling back to image tag: ${{ github.event.inputs.git_sha }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials for S3 State
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Create OCI API Key File
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        working-directory: ./terraform/environments/production
+        run: terraform init
+
+      - name: Get Public IP
+        id: tf_outputs
+        working-directory: ./terraform/environments/production
+        env:
+          TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.OCI_USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          TF_VAR_private_key_path: "/home/runner/.oci/oci_api_key.pem"
+          TF_VAR_region: ${{ secrets.OCI_REGION }}
+          TF_VAR_compartment_id: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          TF_VAR_ssh_public_key: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+        run: |
+          PUBLIC_IP=$(terraform output -raw public_ip)
+          echo "public_ip=${PUBLIC_IP}" >> $GITHUB_OUTPUT
+
+      - name: SSH into VM and Rollback
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ steps.tf_outputs.outputs.public_ip }}
+          username: opc
+          key: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+          script: |
+            echo "==> Authenticating to GHCR..."
+            sudo docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GH_PAT_TOKEN }}
+            
+            cd /opt/tirixai
+            
+            echo "==> Setting IMAGE_TAG to ${{ github.event.inputs.git_sha }} in .env.prod..."
+            # Remove any existing IMAGE_TAG line
+            sudo sed -i '/^IMAGE_TAG=/d' .env.prod
+            # Append the new target SHA
+            echo "IMAGE_TAG=${{ github.event.inputs.git_sha }}" | sudo tee -a .env.prod > /dev/null
+
+            echo "==> Pulling target images..."
+            sudo docker compose -f docker-compose.prod.yml pull
+
+            echo "==> Instantly rolling back containers..."
+            sudo docker compose -f docker-compose.prod.yml up -d
+
+            echo "✅ Rollback to ${{ github.event.inputs.git_sha }} complete!"
