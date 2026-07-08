@@ -351,3 +351,16 @@ services:
       resources:
         limits:
           memory: 256M
+
+  # ── Autoheal (Automatic Self-Healing) ─────────────────
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 64M
