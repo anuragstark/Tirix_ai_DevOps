@@ -335,3 +335,17 @@ services:
       resources:
         limits:
           memory: 128M
+
+  # ── Portainer (Visual Management & Instant Rollbacks) ─
+  portainer:
+    image: portainer/portainer-ce:latest
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/tirixai/portainer:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M

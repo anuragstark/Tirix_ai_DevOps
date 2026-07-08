@@ -87,6 +87,17 @@ resource "oci_core_security_list" "public" {
     }
   }
 
+  # ── Ingress: Custom (port 9000) ──────────────────────────
+  ingress_security_rules {
+    protocol = "6" # TCP
+    source   = "0.0.0.0/0"
+    
+    tcp_options {
+      max = 9000
+      min = 9000
+    }
+  }
+
   # ── Ingress: ICMP (ping) for diagnostics ─────────────────
   ingress_security_rules {
     protocol    = "1" # ICMP
